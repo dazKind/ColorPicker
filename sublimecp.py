@@ -2,6 +2,8 @@ import sublime
 import sublime_plugin
 import subprocess
 import os
+import re
+from ast import literal_eval as make_tuple
 from stat import *
 import threading
 
@@ -213,21 +215,56 @@ class ColorPickCommand(sublime_plugin.TextCommand):
         start_color = None
         start_color_osx = None
         start_color_win = None
+        output_mode = "hex"
 
         # get the currently selected color - if any
         if len(sel) > 0:
             selected = self.view.substr(self.view.word(sel[0])).strip()
-            if selected.startswith('#'): selected = selected[1:]
+
+            # Match the color. There seems a unicode issue concerning selections. Compensate!
+            match = re.match(r'(?:[\W]{1})?(?:#)?(.*)', selected, re.I)
+
+            if match:
+                selected = match.group(1)
+            else:
+                selected = ""
 
             svg_color_hex = self.SVGColors.get(selected, None)
             if svg_color_hex != None:
                 selected = svg_color_hex
 
-            if self.__is_valid_hex_color(selected):
+            # check if we need to modify output-mode
+            t = None
+            if selected.find(",") != -1:
+                t = make_tuple(selected)
+                print(t, len(t))
+                if (len(t) == 3):
+                    isFloat = False
+                    for i in range(0, 3):
+                        if isinstance(t[i], float):
+                            isFloat = True
+                            break;
+                    if (isFloat):
+                        output_mode = "rgb-float"
+                    else:
+                        output_mode = "rgb-int"
+
+            if output_mode == "hex" and self.__is_valid_hex_color(selected):
                 start_color = "#" + selected
                 start_color_osx = selected
                 start_color_win = self.__hexstr_to_bgr(selected)
 
+            elif t and output_mode == "rgb-int":
+                col = self.__rgb_to_hex(t)
+                start_color = "#" + col
+                start_color_osx = selected
+                start_color_win = self.__hexstr_to_bgr(col)
+
+            elif t and output_mode == "rgb-float":
+                col = self.__rgb_to_hex((255 * t[0], 255 * t[1], 255 * t[2]))
+                start_color = "#" + col
+                start_color_osx = selected
+                start_color_win = self.__hexstr_to_bgr(col)
 
         if sublime.platform() == 'windows':
 
@@ -280,19 +317,32 @@ class ColorPickCommand(sublime_plugin.TextCommand):
             if sublime.platform() != 'windows' or sublime_version == 2:
                 color = color.decode('utf-8')
 
-            # replace all regions with color
-            for region in sel:
-                word = self.view.word(region)
+            # replace a single regions with color
+            region = sel[0]
+            word = self.view.word(region)
+
+            if (output_mode == "hex"):
                 # if the selected word is a valid color, replace it
                 if self.__is_valid_hex_color(self.view.substr(word)):
                     # include '#' if present
                     if self.view.substr(word.a - 1) == '#':
                         word = sublime.Region(word.a - 1, word.b)
+                    
                     # replace
                     self.view.replace(edit, word, '#' + color)
+
                 # otherwise just replace the selected region
                 else:
                     self.view.replace(edit, region, '#' + color)
+            
+            elif output_mode == "rgb-int":
+                col = self.__hex_to_rgb(color)
+                self.view.replace(edit, region, ", ".join(map(str, col)))
+
+            elif output_mode == "rgb-float":
+                col = self.__hex_to_rgb(color)
+                col = (x/255 for x in col)
+                self.view.replace(edit, region, ", ".join(map(lambda y: '%08f' % y, col)))
 
 
     def __get_pixel(self):
@@ -322,6 +372,19 @@ class ColorPickCommand(sublime_plugin.TextCommand):
             return 0 <= int(s, 16) <= 0xffffff
         except ValueError:
             return False
+    
+    def __rgb_to_hex(self, rgb):
+        return '%02x%02x%02x' % rgb
+
+    def __hex_to_rgb(self, hexstr):
+        if len(hexstr) == 3:
+            hexstr = hexstr[0] + hexstr[0] + hexstr[1] + hexstr[1] + hexstr[2] + hexstr[2]
+
+        r = int(hexstr[0:2], 16)
+        g = int(hexstr[2:4], 16)
+        b = int(hexstr[4:6], 16)
+
+        return (r, g, b)
 
     def __bgr_to_hexstr(self, bgr, byte_table=list(['{0:02X}'.format(b) for b in range(256)])):
         # 0x00BBGGRR
