@@ -3,7 +3,7 @@
 - 3 modes of input/output: hex, rgb-int, rgb-float
  
 ## Supports:
-- Hex: `#111`, `111`, `#111111`, `111111`
+- Hex: `khaki` `#111`, `111`, `#111111`, `111111`
 - 3 Floats : `1.0, 1, 0.4`
 - 3 Ints: `233, 12, 0`
 
