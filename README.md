@@ -1,3 +1,12 @@
+## New in this fork:
+
+- 3 modes of input/output: hex, rgb-int, rgb-float
+ 
+## Supports:
+- Hex: `#111`, `111`, `#111111`, `111111`
+- 3 Floats : `1.0, 1, 0.4`
+- 3 Ints: `233, 12, 0`
+
 ###Mac OSX
 ![Mac OSX](http://i.minus.com/i5KI6SBAfs7Qk.png "Mac OS X")
 
